@@ -1,0 +1,72 @@
+#!/bin/bash
+#
+# Hook script to pull automatically
+# stage branch in /stage folder and master branch in /prod folder
+# when a push is detected
+
+# Replace "username" by your username
+ME="efcdbsfrhn"
+
+
+# Determining which branch was pushed
+if ! [ -t 0 ]; then
+    read -a ref
+fi
+
+IFS='/' read -ra REF <<< "${ref[2]}"
+branch="${REF[2]}"
+
+echo "Branch pushed: $branch"
+
+# If it was 'master' branch
+if [ "master" == "$branch" ]; then
+
+
+    echo "#######################################################"
+    echo "##################### PROD DEPLOY #####################"
+    echo "#######################################################"
+    # Go to site directory
+    cd /home/${ME}/www/sandboxthree/prod
+    echo "*******************************************************"
+
+    # Shutdown the laravel app
+    /usr/local/php7.2/bin/php artisan down
+    echo "*******************************************************"
+
+    # Pull changes from git dir
+    unset GIT_DIR
+    git fetch origin master
+    git reset --hard FETCH_HEAD
+    echo "*******************************************************"
+
+    # Install new composer packages
+    /usr/local/php7.2/bin/php ~/composer.phar install --no-dev --prefer-dist --optimize-autoloader
+    echo "*******************************************************"
+
+    # Clear caches
+    /usr/local/php7.2/bin/php artisan cache:clear
+    echo "*******************************************************"
+
+    # Clear expired password reset tokens
+    /usr/local/php7.2/bin/php artisan auth:clear-resets
+    echo "*******************************************************"
+
+    # Clear and cache routes
+    /usr/local/php7.2/bin/php artisan route:clear
+    /usr/local/php7.2/bin/php artisan route:cache
+    echo "*******************************************************"
+
+    # Clear and cache config
+    /usr/local/php7.2/bin/php artisan config:clear
+    /usr/local/php7.2/bin/php artisan config:cache
+    echo "*******************************************************"
+
+    php artisan migrate
+
+    # Go live !
+    /usr/local/php7.2/bin/php artisan up
+    echo "#######################################################"
+    echo "###################### DEPLOYED! ######################"
+    echo "#######################################################"
+
+fi
